@@ -49,6 +49,7 @@ public:
     Polynom();
     Polynom(long long _prime, std::vector<long long> keys);              //for all terms
     Polynom(long long _prime, std::vector<std::vector<long long>> keys); //for some terms
+    Polynom(long long _prime, std::string polynom, char X);
     Polynom(const Polynom &other)
     { // copy constructor
         this->prime = other.prime;
@@ -168,8 +169,14 @@ public:
     Polynom derivative() const;
     long long valueAtPoint(long long x) const;
     void normalization();
+
     /** #3      @author Karina Masol & Yuriy Momotenko     **/
-    //...
+    //Finding roots of the polynomial
+    std::vector<Polynom> findRoots();
+    //bringing polynomial to the power
+    Polynom toThePower(long long pow) const;
+    //get instead of polynom f(x) - polynom f(x-b)
+    Polynom getWithOtherParameter(long long b) const;
 
     /** #4      @author Yana Skyrda    **/
     /*! #4
@@ -201,20 +208,18 @@ public:
      */
     std::vector<Polynom> factorizeCyclotomicRi(size_t n);
 
-    /*! #5
-    * @author Yaroslava Levchuk Natalia Makarenko
-    * @brief This function implements algorithm  for finding invers
-    */
-    Polynom inversPoly(long long number, Polynom const &pol1);
-
-    long long gcdforinvers(long long a, long long b, long long *x, long long *y);
-
     /*! #12
      * @author Vladyslav Prokopchuk
      * @brief Finds all irreducible polynomials of degree n
      * @return Vector of all irreducible polynomials of degree n
      */
     static std::vector<Polynom> allIrreduciblePolynomials(long long prime, long long n);
+
+    /*! #12
+     * @brief Finds "size" irreducible polynomials of degree n
+     * @return Vector of all irreducible polynomials of degree n
+     */
+    static std::vector<Polynom> nIrreduciblePolynomials(long long prime, long long n, int size);
 
     /*! #12
      * @author Vladyslav Prokopchuk
@@ -229,6 +234,14 @@ public:
      * @return 1 - if irreducible, 0 - reducible
      */
     bool isIrreducible();
+
+    /*! @author Medynskyi Mykola
+  * @brief Finds berlekamp matrix
+  * @return berlekamp matrix
+  *
+  */
+
+    Matrix buildBerlekampMatrix() const;
 
 protected:
     /*! #1
@@ -260,4 +273,8 @@ protected:
 	* @brief Division
 	*/
     std::pair<Polynom, Polynom> simple_division(Polynom const &p1, Polynom const &p2) const;
+
+    std::vector<Polynom> getComparisonSystemSolutionBasis() const;
+
+    void berlekampAlgorithmMainCase() const;
 };

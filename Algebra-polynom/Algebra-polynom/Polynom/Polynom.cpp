@@ -7,6 +7,7 @@
 #include "Polynom.h"
 #include "../utils.h"
 #include <list>
+#include <stack>
 
 using std::cout;
 using std::cin;
@@ -26,6 +27,14 @@ Polynom::Polynom(long long _prime, std::vector<long long> keys) : prime(_prime) 
 
 Polynom::Polynom(long long _prime, std::vector<std::vector<long long>> keys) : prime(_prime) {
     head = nullptr;
+    for (int i = 0; i < keys.size(); i++) {
+        addItem(makeItem(keys[i][0], keys[i][1]));
+    }
+}
+
+Polynom::Polynom(long long _prime, std::string polynom, char X) : prime(_prime) {
+    head = nullptr;
+    std::vector<std::vector<long long>> keys = utils::coefStr(polynom, X);
     for (int i = 0; i < keys.size(); i++) {
         addItem(makeItem(keys[i][0], keys[i][1]));
     }
@@ -210,6 +219,8 @@ Polynom Polynom::derivative() const {
 /*2     Define value of polynom at a point */
 long long Polynom::valueAtPoint(long long x) const {
     long long answer{0};
+    x %= this->prime;
+    if (x < 0) x += this->prime;
     auto node = this->head;
     while (node) {
         long long addition{node->key};
@@ -219,7 +230,6 @@ long long Polynom::valueAtPoint(long long x) const {
         }
         answer += addition;
         answer %= this->prime;
-        //std::cout << answer << std::endl;
         node = node->next;
     }
     return answer;
@@ -237,6 +247,156 @@ void Polynom::normalization() {
         node->key %= prime;
         node = node->next;
     }
+}
+
+//f(x)^pow
+Polynom Polynom::toThePower(long long pow) const {
+	Polynom ans;
+	ans = Polynom(prime, std::vector<long long>{ 1 });
+
+	Polynom cur = *this;
+
+	while (pow) {
+		if (pow & 1) {
+			ans = ans * cur;
+			--pow;
+		}
+		else {
+			cur = cur * cur;
+			pow >>= 1;
+		}
+	}
+
+	return ans;
+}
+
+//get instead of polynom f(x) - polynom f(x-b)
+Polynom Polynom::getWithOtherParameter(long long b) const {
+	if (b == 0) {
+		return *this;
+	}
+
+	Polynom temp;
+	temp = *this;
+
+	PolyTerm* node = temp.head;
+
+	if (!node) {
+		return Polynom();
+	}
+
+
+	Polynom ans(prime, {
+		{0,0}, {1,0}
+		});
+
+	do {
+		ans = ans + Polynom(prime, {
+			{0,-b}, {1,1}
+			}).toThePower(node->pow) * node->key;
+			node = node->next;
+	} while (node);
+
+	return ans;
+}
+
+/* #3 find roots of the polynomial*/
+std::vector<Polynom> Polynom::findRoots() {
+	long long rootsNumber = this->rootsNumber();
+
+	std::vector<Polynom> ans;
+
+	if (rootsNumber == 0) {
+		return std::vector<Polynom>();
+	}
+	else {
+		struct polynomsStruct {
+			Polynom current;
+			Polynom g;
+			long long b;
+
+			polynomsStruct(Polynom current, Polynom g, long long b) {
+				this->current = current;
+				this->g = g;
+				this->b = b;
+			}
+		};
+
+		std::stack<polynomsStruct> polynoms;
+
+		Polynom divider(prime, {
+			{1,-1},{prime, 1}
+			});
+
+		Polynom g = this->gcd(divider);
+		Polynom xp = Polynom(prime, {
+			{1,0}, {(prime - 1) / 2,1}
+			});
+
+		Polynom one = Polynom(prime, {
+			{0,1},{1,0}
+			});
+
+		polynoms.push(polynomsStruct(*this, g, 0));
+
+		while (!polynoms.empty()) {
+			polynomsStruct currentStruct = polynoms.top();
+			polynoms.pop();
+			Polynom current;
+			current = currentStruct.current;
+			if (current.getPolyPower() > 1) {
+				if (current.rootsNumber()) {
+					currentStruct.g = currentStruct.g.getWithOtherParameter(currentStruct.b);
+					currentStruct.g.normalization();
+
+					Polynom originalG;
+					originalG = currentStruct.g;
+
+					while (xp % currentStruct.g == one % currentStruct.g) {
+						++currentStruct.b;
+						currentStruct.g = originalG;
+						currentStruct.g = g.getWithOtherParameter(currentStruct.b);
+						currentStruct.g.normalization();
+					}
+
+					Polynom temp;
+					Polynom tempG;
+					temp = currentStruct.g.gcd(xp + one);
+					temp.normalization();
+					tempG = temp.getWithOtherParameter(-currentStruct.b);
+					tempG.normalization();
+
+					if (temp.getPolyPower() == 1) {
+						temp = temp.getWithOtherParameter(-currentStruct.b);
+					}
+
+					polynoms.push(polynomsStruct(temp, tempG, currentStruct.b + 1));
+					if (temp.getPolyPower() == 1) {
+						temp = currentStruct.g.getWithOtherParameter(-currentStruct.b) / temp;
+						temp.normalization();
+					}
+					else {
+						temp = currentStruct.g.gcd(xp - one);
+						temp.normalization();
+					}
+					tempG = temp.getWithOtherParameter(-currentStruct.b);
+					tempG.normalization();
+					if (!(temp == polynoms.top().current)) {
+						polynoms.push(polynomsStruct(temp, tempG, currentStruct.b + 1));
+					}
+				}
+			}
+			else {
+				if (current.getPolyPower() == 1) {
+					ans.push_back(Polynom(prime,
+						std::vector<long long>{-1LL * current.getTermKey(0)}
+					));
+				}
+			}
+		}
+	}
+
+	return ans;
 }
 
 /*6 operation for division*/
@@ -331,14 +491,17 @@ bool operator==(Polynom const &p1, Polynom const &p2) {
 long long Polynom::rootsNumber() {
 	long long pow = prime - 1;
 	Matrix AMatrix(pow, pow, prime);
+    std::vector<long long> coeffs(pow, 0);
+    PolyTerm* term = getHead();
+    while (term) {
+        coeffs[term->pow % pow] += term->key;
+        term = term->next;
+    }
+    delete term;
 
 	for (long long i = 0, shift = 0; i < pow; i++, shift++) {
 		for (long long j = 0; j < pow; j++) {
-		    if ( (j + shift) % pow == 0) {
-                AMatrix.setElement(i, j, (getTermKey(0) + getTermKey(pow)) % (prime));
-		    } else {
-		        AMatrix.setElement(i, j, getTermKey((j + shift) % pow));
-		    }
+		    AMatrix.setElement(i, j, coeffs[(j + shift) % pow]);
 		}
 	}
 
@@ -394,11 +557,10 @@ Polynom Polynom::CyclotomicPolynomial(int prime, int n) {
 
 /* 10 Factorization using Ri */
 std::vector<Polynom> Polynom::factorizeCyclotomicRi(size_t n) {
+	//std::cout << "Prime: " << prime << std::endl;
 	//std::cout << "Current: " << this->show() << std::endl;
 	if (n == 1) {
-		std::vector<Polynom> result { Polynom() };
-		result[0]=*this;
-		return result;
+		return std::vector<Polynom> { Polynom(*this) };
 	}
 	if (utils::gcd((long long)n, prime) > 1) {
 		//Special case
@@ -416,8 +578,7 @@ std::vector<Polynom> Polynom::factorizeCyclotomicRi(size_t n) {
 
 		for (size_t i = 1; i < repeat; i++) {
 			for (size_t j = 0; j < count; j++) {
-				factors.emplace_back();
-				factors.back()=factors[j];
+				factors.emplace_back(factors[j]);
 			}
 		}
 		return factors;
@@ -439,14 +600,12 @@ std::vector<Polynom> Polynom::factorizeCyclotomicRi(size_t n) {
 
 	std::vector<Polynom> factors;
 	std::list<Polynom> polysToFactorize;
-	polysToFactorize.emplace_back();
-	polysToFactorize.back()=*this;
+	polysToFactorize.emplace_back(*this);
 
 	size_t factorsCount = utils::euler(n) / d;	
 	size_t factorPower = getPolyPower() / factorsCount;		
 	if (factorsCount == 1) {
-		factors.emplace_back();
-		factors[0]=*this;
+		factors.emplace_back(*this);
 		return factors;
 	}
 	//std::cout << "Factors count: " << factorsCount << std::endl;
@@ -493,7 +652,7 @@ std::vector<Polynom> Polynom::factorizeCyclotomicRi(size_t n) {
 				factorized = true;
 				gcdRi.normalization();
 				factors.push_back(gcdRi);
-			} else if (gcdPower % factorPower == 0) {
+			} else if (gcdPower > 0 && gcdPower % factorPower == 0) {
 				factorized = true;
 				polysToFactorize.push_back(gcdRi);
 			}
@@ -511,60 +670,6 @@ std::vector<Polynom> Polynom::factorizeCyclotomicRi(size_t n) {
 	return factors;
 }
 
-/*5 Inverse of a polynomial in field
-Знаходження оберненого многочлена*/
-/*
-{
-  Polynom tar;
-  Polynom irr;
-  Polynom div;
-  Polynom rem;
-  Polynom res;
-  int i = 1;
-  tar.copy(pol1);
-  irr.copy(pol2);
-  while (rem == 1)
-  {
-    div = irr / tar;
-    rem = irr % tar;
-    irr.copy(tar);
-    tar.copy(rem);
-    if (i % 2)
-      res = res + div;
-    else
-      res = res + 1;
-  }
-  return res;
-}
-*/
-/*long long Polynom::gcdforinvers(long long a, long long b, long long* x, long long* y)
-{
-    if (a == 0)
-    {
-        *x = 0, * y = 1;
-        return b;
-    }
-
-    long long x1, y1;
-    long long gcd = gcdExtended(b % a, a, &x1, &y1);
-
-    *x = y1 - (b / a) * x1;
-    *y = x1;
-
-    return gcd;
-}*/
-
-/*Polynom Polynom::inversPoly(long long number, Polynom const& pol1)
-{
-    int x, y;
-    int g = gcdforinvers(number, pol1, int & x, int & y);
-
-    if (g != 1)
-        return -1;
-    else
-        return (x % pol1 + pol1) % pol1;
-}*/
-
 /* 12 Finds all irreducible polynomials of degree n */
 std::vector<Polynom> Polynom::allIrreduciblePolynomials(long long prime, long long n)
 {
@@ -578,7 +683,11 @@ std::vector<Polynom> Polynom::allIrreduciblePolynomials(long long prime, long lo
             cyclotomic = Polynom::CyclotomicPolynomial(prime, m);
             if (cyclotomic.getPolyPower() < n) continue;
             temp = cyclotomic.factorizeCyclotomicRi(m);
-            result.insert(result.end(), temp.begin(), temp.end());
+            for (auto& ir : temp) {
+                if (ir.getPolyPower() == n) {
+                    result.push_back(ir);
+                }
+            }
         }
     }
     /*// Output
@@ -588,10 +697,10 @@ std::vector<Polynom> Polynom::allIrreduciblePolynomials(long long prime, long lo
     return result;
 }
 
-/* 12 Finds one irreducible polynomial of degree n */
-Polynom Polynom::findIrreduciblePolynomial(long long prime, long long n)
+/* 12 Finds "size" irreducible polynomials of degree n */
+std::vector<Polynom> Polynom::nIrreduciblePolynomials(long long prime, long long n, int size)
 {
-    std::vector<Polynom> temp;
+    std::vector<Polynom> result, temp;
     Polynom cyclotomic;
 
     // 3.31 Lidl
@@ -601,10 +710,23 @@ Polynom Polynom::findIrreduciblePolynomial(long long prime, long long n)
             cyclotomic = Polynom::CyclotomicPolynomial(prime, m);
             if (cyclotomic.getPolyPower() < n) continue;
             temp = cyclotomic.factorizeCyclotomicRi(m);
-            return temp[0];
+            for (auto& ir : temp) {
+                if (ir.getPolyPower() == n) {
+                    if (result.size() < size) result.push_back(ir);
+                    else return result;
+                }
+            }
+            
         }
     }
-    // Doesn't find
+    return result;
+}
+
+/* 12 Finds one irreducible polynomial of degree n */
+Polynom Polynom::findIrreduciblePolynomial(long long prime, long long n)
+{
+    std::vector<Polynom> temp = nIrreduciblePolynomials(prime,n,1);
+    if (temp.size() != 0) return temp[0];
     return Polynom();
 }
 
@@ -628,4 +750,51 @@ bool Polynom::isIrreducible(){
             return false;
     }
     return true;
+}
+/* build berlekamp matrix */
+Matrix Polynom::buildBerlekampMatrix() const {
+    std::vector<Polynom> M;
+    Polynom one(prime, std::vector<long long>{1});
+    M.push_back(one);
+    Polynom current(*this);
+    for (int i = 1; i < getPolyPower(); i++) {
+        std::vector<std::vector<long long>> someVec = {{i * prime, 1}};
+        Polynom polynomXPI(prime, someVec);
+        Polynom remainder = polynomXPI % current;
+        M.push_back(remainder);
+    }
+
+    Matrix matrix(getPolyPower(), getPolyPower(), prime);
+
+    for (int i = 0; i < getPolyPower(); i++) {
+        for (int j = 0; j < getPolyPower(); j++) {
+            if(i != j){
+                matrix.setElement(i, j, M[i].getTermKey(j));
+            }
+            else {
+                matrix.setElement(i, j, M[i].getTermKey(j)-1);
+            }
+        }
+    }
+    return matrix;
+}
+
+std::vector<Polynom> Polynom::getComparisonSystemSolutionBasis() const {
+    Matrix matrix = buildBerlekampMatrix();
+    auto basis = matrix.buildSolutionSpaceBasis();
+    std::vector<Polynom> polynomial_basis;
+    for (size_t i = 0; i < basis.size(); i++) {
+        polynomial_basis.push_back(Polynom{ prime, basis[i] });
+    }
+    return polynomial_basis;
+}
+
+void Polynom::berlekampAlgorithmMainCase() const {
+    auto polynomial_basis = getComparisonSystemSolutionBasis();
+    if (polynomial_basis.size() == 1) {
+        //irreducible
+    }
+    else {
+        //body
+    }
 }
