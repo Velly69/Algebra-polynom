@@ -289,6 +289,11 @@ TEST_CASE("Roots amount")
         });
         REQUIRE(polynomial.rootsNumber() == 2);
     }
+
+    SUBCASE("Sixth example") {
+        Polynom polynomial(3, {0,1,1});
+        REQUIRE(polynomial.rootsNumber() == 2);
+    }
 }
 
 TEST_CASE("Polynom to the power of test") {
@@ -536,6 +541,11 @@ TEST_CASE("Cyclotomic polynomials")
         keys[48] = 1;
         Polynom polynomial(131, keys);
         REQUIRE(Polynom::CyclotomicPolynomial(131, 105) == polynomial);
+    }
+    SUBCASE("n=30")
+    {
+        Polynom polynomial(131, { 1, 1, 0 , 130, 130, 130, 0, 1, 1 });
+        REQUIRE(Polynom::CyclotomicPolynomial(131, 30) == polynomial);
     }
 }
 
